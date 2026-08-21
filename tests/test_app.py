@@ -1,40 +1,39 @@
 from unittest.mock import patch
 
-from app import app
-from services.contradicoes import detectar, demonstracao
+from app import app, detectar_contradicoes
 
 
-def test_saude():
-    client = app.test_client()
-    response = client.get("/api/saude")
+def test_health_v03():
+    response = app.test_client().get("/api/health")
     assert response.status_code == 200
-    assert response.get_json()["versao"] == "0.3.0"
+    assert response.get_json()["version"] == "0.3"
 
 
-def test_justica_nao_automatizada():
-    response = app.test_client().get("/api/deputados/123/justica")
-    body = response.get_json()
+def test_justica_continua_nao_automatizada():
+    body = app.test_client().get("/api/deputados/123/justica").get_json()
     assert body["dados"] == []
     assert body["meta"]["automatizado"] is False
 
 
-def test_contradicao_demo_marcada():
-    body = demonstracao()
-    assert body["demo"] is True
-    assert body["publicavel"] is False
-    assert body["resultado"][0]["status"] == "requer_revisao_humana"
+def test_demonstracao_nao_publicavel():
+    body = app.test_client().get("/api/deputados/123/contradicoes?demonstracao=1").get_json()
+    assert body["dados"] == []
+    assert body["demonstracao"]["demo"] is True
+    assert body["demonstracao"]["publicavel"] is False
 
 
-def test_motor_nao_cruza_temas_diferentes():
-    posicoes = [{"tema_id": "a", "posicao": "contra"}]
-    atos = [{"tema_id": "b", "posicao": "favoravel"}]
-    assert detectar(posicoes, atos) == []
+def test_motor_exige_mesmo_tema_e_oposicao():
+    posicoes = [{"temaId": "a", "posicao": "contra"}]
+    atos = [{"temaId": "b", "posicao": "favoravel"}]
+    assert detectar_contradicoes(posicoes, atos) == []
 
 
-@patch("app.camara.deputados")
-def test_proxy_deputados(mock_deputados):
-    mock_deputados.return_value = {"dados": [{"id": 1, "nome": "Teste"}]}
-    response = app.test_client().get("/api/deputados?nome=Teste&uf=sp")
-    assert response.status_code == 200
-    mock_deputados.assert_called_once_with(nome="Teste", partido="", uf="SP", pagina=1)
+@patch("app.fetch_votacoes_recentes")
+@patch("app.fetch_votos_votacao")
+def test_cruzamento_de_voto_nominal(mock_votos, mock_votacoes):
+    mock_votacoes.return_value = [{"id": "1-2", "data": "2026-08-12", "descricao": "Teste"}]
+    mock_votos.return_value = [{"tipoVoto": "Sim", "deputado_": {"id": 123}}]
+    body = app.test_client().get("/api/deputados/123/votacoes").get_json()
+    assert body["dados"][0]["voto"] == "Sim"
+    assert body["meta"]["deputadoId"] == 123
 

@@ -5,7 +5,7 @@ services:
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
-    healthCheckPath: /api/saude
+    healthCheckPath: /api/health
     envVars:
       - key: CACHE_TTL_SECONDS
         value: 900
@@ -13,6 +13,3 @@ services:
         value: 120
       - key: VOTACOES_SCAN_LIMIT
         value: 36
-      - key: PYTHON_VERSION
-        value: 3.12.7
-

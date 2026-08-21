@@ -18,7 +18,7 @@ function loading(text="Consultando fonte oficial…"){
 function errorView(message){
   apiStatus.className="api-status error";
   apiStatus.innerHTML='<span class="pulse"></span> Câmara: indisponível';
-  app.innerHTML=`<section class="card"><h2>Não foi possível carregar os dados</h2><p class="muted">${escapeHtml(message)}</p><p class="small">A v0.2 consulta os Dados Abertos da Câmara em tempo real. Tente novamente em instantes.</p></section>`;
+  app.innerHTML=`<section class="card"><h2>Não foi possível carregar os dados</h2><p class="muted">${escapeHtml(message)}</p><p class="small">A v0.3 consulta os Dados Abertos da Câmara em tempo real. Tente novamente em instantes.</p></section>`;
 }
 function escapeHtml(v=""){
   return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -59,7 +59,7 @@ async function renderHome(){
       <div>
         <div class="eyebrow">Ficha Pública · MVP nacional</div>
         <h1>O histórico público de quem representa você.</h1>
-        <p>Começamos pelos deputados federais. Os perfis abaixo são carregados diretamente dos Dados Abertos da Câmara e serão a base para integrar votações, gastos, histórico, contradições e Justiça.</p>
+        <p>Começamos pelos deputados federais. Os perfis abaixo são carregados diretamente dos Dados Abertos da Câmara e agora incluem uma amostra de votações nominais reais recentes.</p>
         <div class="kpis">
           <div class="kpi"><span>Deputados retornados agora</span><strong>${meta.totalAtual ?? data.dados.length}</strong></div>
           <div class="kpi"><span>Partidos representados</span><strong>${parties}</strong></div>
@@ -126,10 +126,12 @@ async function renderDirectory(){
 
 async function renderProfile(id){
   loading("Montando ficha oficial do deputado…");
-  const [profile, expenses, career] = await Promise.all([
+  const [profile, expenses, career, votes, contradictions] = await Promise.all([
     getJSON(`/api/deputados/${id}`),
     getJSON(`/api/deputados/${id}/despesas?ano=2026`).catch(()=>null),
-    getJSON(`/api/deputados/${id}/carreira`).catch(()=>null)
+    getJSON(`/api/deputados/${id}/carreira`).catch(()=>null),
+    getJSON(`/api/deputados/${id}/votacoes?limite=8`).catch(()=>null),
+    getJSON(`/api/deputados/${id}/contradicoes?demonstracao=1`).catch(()=>null)
   ]);
   const d=profile.dados||{};
   const s=d.ultimoStatus||{};
@@ -140,6 +142,8 @@ async function renderProfile(id){
   const maxCat=topCategories[0]?.valor||1;
   const mandates=history?.mandatosExternos||[];
   const camHistory=history?.historicoCamara||[];
+  const recentVotes=votes?.dados||[];
+  const demo=contradictions?.demonstracao;
 
   app.innerHTML=`
     <section class="profile-top">
@@ -175,6 +179,7 @@ async function renderProfile(id){
       <div class="stat"><label>Despesas 2026</label><strong>${exp?BRL.format(exp.total):"—"}</strong><small>${exp?`${exp.quantidadeLancamentos} lançamentos`:"não carregado"}</small></div>
       <div class="stat"><label>Mandatos externos</label><strong>${mandates.length}</strong><small>registrados pela Câmara</small></div>
       <div class="stat"><label>Histórico na Câmara</label><strong>${camHistory.length}</strong><small>mudanças registradas</small></div>
+      <div class="stat"><label>Votos recentes</label><strong>${votes?recentVotes.length:"—"}</strong><small>nominais na amostra</small></div>
       <div class="stat"><label>ID oficial</label><strong>${escapeHtml(d.id||id)}</strong><small>Câmara dos Deputados</small></div>
     </section>
 
@@ -209,23 +214,37 @@ async function renderProfile(id){
         <p class="tiny"><a class="source-link" href="${escapeHtml(career?.meta?.urlMandatos||"#")}" target="_blank" rel="noopener">Fonte: mandatos externos ↗</a></p>
       </article>
 
-      <article class="panel">
-        <h2>4. Contradições</h2>
-        <div class="notice"><strong>Próxima integração de IA.</strong> O sistema cruzará fala anterior × voto/ato posterior, procurará contexto e uma possível justificativa antes de liberar qualquer registro.</div>
+      <article class="panel votes-panel">
+        <h2>4. Votações nominais recentes</h2>
+        ${votes?`${recentVotes.length?`<div class="vote-list">${recentVotes.map(voteCard).join("")}</div>`:`<div class="notice">Nenhum voto nominal foi localizado na janela recente analisada.</div>`}
+        <p class="tiny muted vote-note">${escapeHtml(votes.meta?.nota||"")}</p>`:
+        `<div class="notice">Não foi possível consultar as votações neste acesso.</div>`}
       </article>
 
       <article class="panel">
-        <h2>5. Justiça e elegibilidade</h2>
-        <div class="notice">Ainda não preenchido automaticamente. A v0.3 deve integrar TSE/Justiça Eleitoral para distinguir: investigação, denúncia, réu, condenação, trânsito em julgado e períodos de inelegibilidade.</div>
+        <h2>5. Contradições</h2>
+        <div class="notice"><strong>Nenhuma contradição publicada.</strong> O motor inicial já cruza posições opostas sobre um mesmo tema, mas declarações reais ainda dependem de fonte estruturada, contexto e revisão humana.</div>
+        ${demo?`<details class="demo-box"><summary>Ver exemplo puramente demonstrativo</summary>
+          <div class="demo-warning">${escapeHtml(demo.rotulo)}</div>
+          <p class="small"><strong>Declaração fictícia:</strong> ${escapeHtml(demo.posicoes?.[0]?.texto||"")}</p>
+          <p class="small"><strong>Ato fictício:</strong> ${escapeHtml(demo.atos?.[0]?.texto||"")}</p>
+          <p class="small"><strong>Saída:</strong> possível contradição · requer revisão humana · não publicável.</p>
+        </details>`:""}
       </article>
 
       <article class="panel">
-        <h2>6. Fontes</h2>
+        <h2>6. Justiça e elegibilidade</h2>
+        <div class="notice"><strong>Não automatizado.</strong> Estes campos permanecem vazios até a integração oficial com TSE/Justiça Eleitoral. Um campo vazio não significa “sem processos” nem “elegível”.</div>
+      </article>
+
+      <article class="panel">
+        <h2>7. Fontes</h2>
         <div class="detail-list">
           ${detailLink("Cadastro do deputado",profile.meta.urlFonte)}
           ${expenses?detailLink("Despesas de 2026",expenses.meta.urlFonte):""}
           ${career?detailLink("Histórico parlamentar",career.meta.urlHistorico):""}
           ${career?detailLink("Mandatos externos",career.meta.urlMandatos):""}
+          ${recentVotes.length?detailLink("Voto nominal mais recente",recentVotes[0].urlFonte):""}
         </div>
       </article>
     </section>`;
@@ -233,15 +252,26 @@ async function renderProfile(id){
 function detail(label,value){return `<div class="detail-row"><label>${escapeHtml(label)}</label><strong>${escapeHtml(value||"—")}</strong></div>`}
 function detailLink(label,url){return `<div class="detail-row"><label>${escapeHtml(label)}</label><strong><a class="source-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">Abrir fonte oficial ↗</a></strong></div>`}
 function formatDate(v){if(!v)return"—";const [y,m,d]=String(v).split("-");return y&&m&&d?`${d}/${m}/${y}`:v}
+function voteCard(v){
+  const vote=String(v.voto||"—");
+  const cls=vote.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z]/g,"");
+  return `<div class="vote-item">
+    <span class="vote-value ${escapeHtml(cls)}">${escapeHtml(vote)}</span>
+    <div><strong>${escapeHtml(v.descricao||"Votação nominal")}</strong>
+    <p>${escapeHtml(v.resultado||v.descricaoUltimaAberturaVotacao||"Resultado não descrito")}</p>
+    <div class="vote-meta">${escapeHtml(formatDate(v.data))} · <a class="source-link" href="${escapeHtml(v.urlFonte)}" target="_blank" rel="noopener">conferir voto oficial ↗</a></div></div>
+  </div>`;
+}
 
 function renderMethod(){
   app.innerHTML=`
     <div class="section-head"><div><div class="eyebrow">Metodologia do produto</div><h1>Separar coleta de julgamento</h1></div></div>
     <section class="card method">
       <div class="method-item"><div><h3>Dados objetivos primeiro</h3><p>Nome, partido, UF, cadastro, despesas e histórico vêm diretamente das APIs e documentos oficiais.</p></div></div>
+      <div class="method-item"><div><h3>Votos nominais reais</h3><p>A ficha cruza uma janela recente de votações com o registro individual de cada parlamentar. Ausência na amostra não é tratada como ausência à sessão.</p></div></div>
       <div class="method-item"><div><h3>IA encontra relações</h3><p>Falas, votos e atos são normalizados por tema. Um agente propõe uma possível contradição.</p></div></div>
       <div class="method-item"><div><h3>IA tenta refutar</h3><p>Um segundo agente procura mudança de contexto, alteração de texto legislativo, declaração explicativa ou outro motivo que enfraqueça a conclusão.</p></div></div>
-      <div class="method-item"><div><h3>Risco editorial</h3><p>Registros sensíveis de Justiça, crime, inelegibilidade e acusações exigem fonte apropriada e podem ser enviados para revisão humana.</p></div></div>
+      <div class="method-item"><div><h3>Risco editorial</h3><p>Registros sensíveis de Justiça, crime, inelegibilidade e acusações exigem fonte apropriada e revisão humana. Esses campos não são automatizados na v0.3.</p></div></div>
       <div class="method-item"><div><h3>Leitor confere</h3><p>Cada ficha mantém links para as fontes de origem. O produto não dá uma nota geral de “honestidade”.</p></div></div>
     </section>`;
 }

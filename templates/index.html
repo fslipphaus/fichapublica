@@ -1,41 +1,30 @@
-{% extends "base.html" %}
-{% block title %}Ficha Pública — Deputados federais{% endblock %}
-{% block content %}
-<section class="hero">
-  <p class="eyebrow">CÂMARA DOS DEPUTADOS · DADOS OFICIAIS</p>
-  <h1>Veja o histórico público<br>de quem representa você.</h1>
-  <p>Busque deputados por nome, partido ou estado. Agora com votos nominais recentes.</p>
-  <form id="busca" class="searchbar">
-    <input id="nome" name="nome" aria-label="Nome do deputado" placeholder="Nome do deputado">
-    <input id="partido" name="partido" aria-label="Partido" placeholder="Partido" maxlength="12">
-    <input id="uf" name="uf" aria-label="UF" placeholder="UF" maxlength="2">
-    <button>Buscar</button>
-  </form>
-</section>
-<section class="content">
-  <div class="section-heading"><div><p class="eyebrow">DIRETÓRIO</p><h2>Deputados federais</h2></div><span id="status">Carregando dados oficiais…</span></div>
-  <div id="lista" class="cards" aria-live="polite"></div>
-</section>
-{% endblock %}
-{% block scripts %}
-<script>
-const lista = document.querySelector('#lista');
-const statusEl = document.querySelector('#status');
-function escapeHtml(value='') { const d=document.createElement('div'); d.textContent=value; return d.innerHTML; }
-async function carregar(params = {}) {
-  statusEl.textContent = 'Consultando a Câmara…'; lista.innerHTML = '';
-  const query = new URLSearchParams(params);
-  try {
-    const response = await fetch('/api/deputados?' + query); const body = await response.json();
-    if (!response.ok) throw new Error(body.erro || 'Falha na consulta');
-    const dados = body.dados || []; statusEl.textContent = `${dados.length} resultado(s) nesta página`;
-    lista.innerHTML = dados.map(d => `<a class="person-card" href="/deputados/${d.id}">
-      <img src="${escapeHtml(d.urlFoto)}" alt="Foto oficial de ${escapeHtml(d.nome)}" loading="lazy">
-      <div><h3>${escapeHtml(d.nome)}</h3><p>${escapeHtml(d.siglaPartido)} · ${escapeHtml(d.siglaUf)}</p><span>Ver ficha pública →</span></div></a>`).join('') || '<p>Nenhum deputado encontrado.</p>';
-  } catch (error) { statusEl.textContent='Fonte indisponível'; lista.innerHTML=`<div class="notice error">${escapeHtml(error.message)}. Tente novamente em instantes.</div>`; }
-}
-document.querySelector('#busca').addEventListener('submit', e => { e.preventDefault(); carregar(Object.fromEntries(new FormData(e.target))); });
-carregar();
-</script>
-{% endblock %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Ficha Pública — histórico público documentado de candidatos e parlamentares." />
+  <title>Ficha Pública — Deputados Federais</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <a href="#home" class="brand"><span class="brandmark">FP</span><strong>Ficha Pública</strong></a>
+  <nav>
+    <a href="#home">Início</a>
+    <a href="#deputados">Deputados</a>
+    <a href="#metodologia">Metodologia</a>
+  </nav>
+  <div class="api-status" id="apiStatus"><span class="pulse"></span> Câmara: conectando…</div>
+</header>
 
+<main id="app" class="shell" aria-live="polite"></main>
+
+<footer>
+  <div><strong>Ficha Pública</strong> · MVP v0.3</div>
+  <div>Não confie na gente. Confira a fonte.</div>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

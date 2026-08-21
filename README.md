@@ -1,73 +1,64 @@
-# Ficha Pública v0.3
+# Ficha Pública — MVP v0.3
 
-MVP em Flask para consultar deputados federais e votos nominais reais recentes usando a API oficial de Dados Abertos da Câmara dos Deputados.
+Esta versão foi construída **diretamente sobre a v0.2**, preservando sua arquitetura Flask, interface azul, navegação por hash, diretório, ficha, despesas, histórico e metodologia. A novidade principal é a integração inicial de votos nominais reais da Câmara e a base auditável para posições e possíveis contradições.
 
-> Princípio editorial: **não confie na gente; confira a fonte.**
+## O que continua igual à v0.2
 
-## O que há nesta versão
+- Aplicação Flask simples (`app.py`) com frontend em `static/app.js`.
+- Mesma identidade visual e estrutura responsiva.
+- Diretório dos deputados federais, busca e filtros.
+- Perfil, foto, partido, UF, cadastro oficial, despesas e carreira.
+- Cache em memória e links para os endpoints oficiais.
+- Justiça e inelegibilidade sem preenchimento automático.
 
-- Diretório de deputados com busca por nome, partido e UF.
-- Ficha individual com cadastro e foto oficiais.
-- Consulta de despesas e resumo por categoria.
-- Endpoints de votações, detalhes e votos nominais.
-- Cruzamento de votações recentes para localizar votos de um deputado.
-- Estrutura JSON para declarações, posições, atos e fontes.
+## O que entrou na v0.3
+
+- Consulta de votações da Câmara por período.
+- Detalhes de uma votação e seus votos nominais.
+- Cruzamento de uma amostra de votações recentes para localizar votos de cada deputado.
+- Painel de votações reais recentes na ficha existente.
+- Estrutura JSON para declaração, voto/ato, tema, posição e estado da fonte.
 - Motor inicial, determinístico e explicável, de candidatos a contradição.
-- Exemplo de contradição totalmente fictício, separado dos dados reais e marcado como **não publicável**.
-- Justiça e inelegibilidade deliberadamente vazias e não automatizadas.
-- Cache em memória e limites adequados a uma instância gratuita do Render.
+- Exemplo fictício separado e marcado como **não publicável**.
+- Health check e Blueprint do Render explicitamente no plano gratuito.
 
-## Fontes e limites
+## Fonte oficial e limitações
 
-A fonte factual integrada é `https://dadosabertos.camara.leg.br/api/v2`.
+A integração factual usa `https://dadosabertos.camara.leg.br/api/v2`.
 
-A Câmara expõe `GET /votacoes`, `GET /votacoes/{id}` e `GET /votacoes/{id}/votos`, mas não oferece na API REST um filtro direto para “todos os votos de um deputado”. Por isso, `/api/deputados/{id}/votacoes`:
+A API oferece `/votacoes` e `/votacoes/{id}/votos`, mas não um endpoint direto de “todos os votos de um deputado”. A ficha busca uma janela de votações recentes, consulta em paralelo os registros nominais, seleciona os registros do deputado e mantém o resultado em cache.
 
-1. busca uma janela de votações recentes;
-2. consulta em paralelo os votos nominais de cada uma;
-3. seleciona os registros do deputado;
-4. aplica cache por 15 minutos.
-
-Isso é uma amostra recente, não o histórico completo. Votações simbólicas normalmente não têm votos individuais; deputados ausentes também não aparecem em `/votos`. A própria Câmara alerta que a associação entre votação e proposição pode ser imperfeita, especialmente em destaques e proposições acessórias. A interface explicita essas limitações.
-
-Para escala e histórico completo, a próxima versão deve importar diariamente os arquivos anuais `votacoes`, `votacoesVotos`, `votacoesProposicoes` e `votacoesObjetos` para um banco persistente.
+É uma **amostra recente**, não um histórico completo. Votações simbólicas normalmente não têm votos individuais, e ausência na lista não significa ausência à sessão. Para escala e histórico completo, uma versão futura deverá importar os arquivos anuais `votacoes`, `votacoesVotos`, `votacoesProposicoes` e `votacoesObjetos` para um banco persistente.
 
 ## Endpoints
 
-| Método | Endpoint | Descrição |
-|---|---|---|
-| GET | `/api/saude` | Saúde e versão |
-| GET | `/api/deputados?nome=&partido=&uf=&pagina=` | Busca de deputados |
-| GET | `/api/deputados/{id}` | Cadastro oficial |
-| GET | `/api/deputados/{id}/despesas?ano=` | Despesas e resumo |
-| GET | `/api/votacoes?dataInicio=&dataFim=&pagina=&itens=` | Votações no período |
-| GET | `/api/votacoes/{id}` | Detalhe de uma votação |
-| GET | `/api/votacoes/{id}/votos` | Votos nominais da votação |
-| GET | `/api/deputados/{id}/votacoes?limite=&dias=` | Votos recentes do deputado |
-| GET | `/api/deputados/{id}/posicoes` | Estrutura futura; retorna vazio |
-| GET | `/api/deputados/{id}/contradicoes` | Casos reais; retorna vazio |
-| GET | `/api/deputados/{id}/contradicoes?demonstracao=1` | Inclui exemplo fictício marcado |
-| GET | `/api/deputados/{id}/justica` | Não automatizado; retorna vazio |
+| Endpoint | Função |
+|---|---|
+| `GET /api/health` | Saúde e versão |
+| `GET /api/deputados` | Diretório completo |
+| `GET /api/deputados/{id}` | Cadastro oficial |
+| `GET /api/deputados/{id}/despesas?ano=2026` | Despesas agregadas |
+| `GET /api/deputados/{id}/carreira` | Histórico e mandatos externos |
+| `GET /api/votacoes?dataInicio=AAAA-MM-DD&dataFim=AAAA-MM-DD` | Votações no período |
+| `GET /api/votacoes/{id}` | Detalhe da votação |
+| `GET /api/votacoes/{id}/votos` | Votos nominais oficiais |
+| `GET /api/deputados/{id}/votacoes?limite=8&dias=120` | Votos recentes do deputado |
+| `GET /api/deputados/{id}/posicoes` | Estrutura futura; lista vazia |
+| `GET /api/deputados/{id}/contradicoes` | Casos reais; lista vazia |
+| `GET /api/deputados/{id}/contradicoes?demonstracao=1` | Exemplo fictício marcado |
+| `GET /api/deputados/{id}/justica` | Não automatizado; lista vazia |
 
-IDs de votação podem conter hífen; o backend aceita o identificador completo.
+## Posições e contradições
 
-## Modelo de posições e contradições
+O contrato inicial está em `data/posicoes.schema.json`. O motor compara somente dados explicitamente fornecidos e só cria um candidato quando encontra o mesmo tema com posições opostas (`favoravel` × `contra`). Toda saída exige revisão humana e é não publicável por padrão.
 
-O contrato inicial está em `data/posicoes.schema.json`. Uma posição exige pessoa, tema, natureza do ato, orientação, data e estado da fonte. O motor só gera um candidato quando encontra:
-
-- o mesmo `tema_id`;
-- posições opostas (`favoravel` × `contra`);
-- dois registros explicitamente fornecidos.
-
-A saída é sempre `requer_revisao_humana`. Não há classificação por IA, inferência de tema ou publicação automática nesta versão. Antes de publicar um caso real, será necessário verificar o texto efetivamente votado, o contexto temporal, mudanças no projeto, justificativas do parlamentar e as fontes primárias.
+A demonstração local não usa nome de pessoa real, não possui fonte e aparece em campo separado. Nenhuma declaração ou contradição é atribuída automaticamente a um deputado nesta versão.
 
 ## Justiça e inelegibilidade
 
-Não são inferidas a partir de notícias, nomes ou buscas genéricas. O endpoint retorna lista vazia até haver integração confiável com TSE e sistemas oficiais da Justiça, além de regras de atualização e revisão. Um campo vazio significa **não integrado**, nunca “sem processos” ou “elegível”.
+Continuam deliberadamente não automatizadas até uma integração confiável com TSE e fontes oficiais da Justiça. Campo vazio significa **não integrado**, e nunca “sem processos” ou “elegível”.
 
-## Execução local
-
-Requer Python 3.11 ou superior.
+## Rodar localmente
 
 ```bash
 python -m venv .venv
@@ -85,49 +76,41 @@ pip install pytest
 pytest -q
 ```
 
-Os testes não dependem da internet: validam saúde, rotas sensíveis, marcação do conteúdo demonstrativo e regras básicas do motor.
-
-## Publicação no GitHub e Render
+## Publicar no GitHub e Render
 
 1. Extraia o ZIP e envie o conteúdo da pasta para um repositório GitHub.
-2. No Render, escolha **New → Blueprint** e conecte o repositório.
-3. O Render lerá `render.yaml`.
-4. Confirme que aparece `plan: free` / instância gratuita antes de concluir.
-5. Aguarde o health check em `/api/saude`.
+2. No Render, use **New → Blueprint** e conecte o repositório.
+3. Confirme a instância **Free — $0/month** antes de concluir.
+4. O Blueprint executará `gunicorn app:app` e verificará `/api/health`.
 
-O serviço inicia com `gunicorn app:app`. Nenhum banco ou segredo é necessário nesta versão.
+O `render.yaml` contém explicitamente `plan: free`.
 
-### Variáveis de ambiente
+## Variáveis
 
-- `CACHE_TTL_SECONDS=900`: duração do cache local.
-- `VOTACOES_LOOKBACK_DAYS=120`: janela padrão de busca.
-- `VOTACOES_SCAN_LIMIT=36`: máximo de votações inspecionadas por ficha.
-- `PORT`: definida automaticamente pelo Render.
+- `CACHE_TTL_SECONDS=900`: cache local.
+- `VOTACOES_LOOKBACK_DAYS=120`: janela recente.
+- `VOTACOES_SCAN_LIMIT=36`: votações inspecionadas por ficha.
+- `PORT`: definida pelo Render.
 
-## Estrutura
+## Arquitetura preservada
 
 ```text
-app.py                         rotas Flask e API
-services/camara.py             cliente da Câmara e cruzamento de votos
-services/cache.py              cache TTL em memória
-services/contradicoes.py       motor inicial + demonstração fictícia
-data/posicoes.schema.json      contrato dos dados editoriais
-templates/                     páginas HTML
-static/css/style.css           identidade visual responsiva
-tests/test_app.py              testes automatizados
-render.yaml                    Blueprint Render no plano free
+Browser / SPA existente
+        ↓
+Flask (app.py)
+        ↓
+Dados Abertos da Câmara
+        ↓
+cache em memória
+        ↓
+ficha e painéis existentes
 ```
 
-## Roadmap recomendado
+## Roadmap
 
-1. Banco PostgreSQL e importação incremental dos arquivos anuais da Câmara.
-2. Associação auditável entre votação, proposição principal, destaques e temas.
-3. Pipeline de declarações com captura de trecho, URL, data e cópia da fonte.
-4. Fila de revisão humana e histórico de decisões editoriais.
+1. Importação incremental dos arquivos anuais em PostgreSQL.
+2. Associação auditável entre votação, proposição, destaques e temas.
+3. Pipeline de declarações com URL, trecho, data e cópia da fonte.
+4. Fila de revisão editorial humana.
 5. Integração TSE/Justiça antes de preencher elegibilidade ou processos.
-6. Senado e candidaturas presidenciais somente após estabilizar os contratos de fonte.
-
-## Aviso editorial
-
-“Possível contradição” é uma hipótese de análise, não uma afirmação sobre intenção, honestidade ou legalidade. Dados demonstrativos nunca devem ser misturados a perfis reais. Todo dado factual deve manter link para a fonte e data de atualização.
 
