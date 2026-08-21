@@ -1,0 +1,249 @@
+const app = document.querySelector("#app");
+const apiStatus = document.querySelector("#apiStatus");
+let directoryCache = null;
+
+const BRL = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
+
+async function getJSON(url){
+  const r = await fetch(url,{headers:{"Accept":"application/json"}});
+  const data = await r.json().catch(()=>({erro:"Resposta inválida do servidor."}));
+  if(!r.ok) throw new Error(data.erro || `Erro ${r.status}`);
+  apiStatus.className="api-status ok";
+  apiStatus.innerHTML='<span class="pulse"></span> Câmara: online';
+  return data;
+}
+function loading(text="Consultando fonte oficial…"){
+  app.innerHTML=`<div class="loading"><div class="spinner"></div><div>${text}</div></div>`;
+}
+function errorView(message){
+  apiStatus.className="api-status error";
+  apiStatus.innerHTML='<span class="pulse"></span> Câmara: indisponível';
+  app.innerHTML=`<section class="card"><h2>Não foi possível carregar os dados</h2><p class="muted">${escapeHtml(message)}</p><p class="small">A v0.2 consulta os Dados Abertos da Câmara em tempo real. Tente novamente em instantes.</p></section>`;
+}
+function escapeHtml(v=""){
+  return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+}
+function initials(name=""){
+  return name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase();
+}
+function photo(src,name,cls="photo"){
+  const safe=escapeHtml(src||"");
+  return safe ? `<img class="${cls}" src="${safe}" alt="Foto de ${escapeHtml(name)}" loading="lazy" onerror="this.style.visibility='hidden'">` : `<div class="${cls}">${initials(name)}</div>`;
+}
+
+async function router(){
+  const hash=location.hash||"#home";
+  try{
+    if(hash.startsWith("#deputado/")) return renderProfile(hash.split("/")[1]);
+    if(hash==="#deputados") return renderDirectory();
+    if(hash==="#metodologia") return renderMethod();
+    return renderHome();
+  }catch(e){ errorView(e.message); }
+}
+window.addEventListener("hashchange",router);
+
+async function getDirectory(){
+  if(directoryCache) return directoryCache;
+  directoryCache=await getJSON("/api/deputados");
+  return directoryCache;
+}
+
+async function renderHome(){
+  loading();
+  const data=await getDirectory();
+  const meta=data.meta||{};
+  const parties=(meta.partidos||[]).length;
+  const ufs=(meta.ufs||[]).length;
+  app.innerHTML=`
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Ficha Pública · MVP nacional</div>
+        <h1>O histórico público de quem representa você.</h1>
+        <p>Começamos pelos deputados federais. Os perfis abaixo são carregados diretamente dos Dados Abertos da Câmara e serão a base para integrar votações, gastos, histórico, contradições e Justiça.</p>
+        <div class="kpis">
+          <div class="kpi"><span>Deputados retornados agora</span><strong>${meta.totalAtual ?? data.dados.length}</strong></div>
+          <div class="kpi"><span>Partidos representados</span><strong>${parties}</strong></div>
+          <div class="kpi"><span>UFs representadas</span><strong>${ufs}</strong></div>
+        </div>
+      </div>
+      <div class="card searchbox">
+        <h2>Encontre um deputado</h2>
+        <input id="homeSearch" placeholder="Digite nome, partido ou UF" autocomplete="off">
+        <div id="homeMatches"></div>
+        <div class="notice"><strong>Fonte ao vivo:</strong> Câmara dos Deputados. Cada perfil mantém o link da fonte oficial para conferência.</div>
+      </div>
+    </section>
+    <section>
+      <div class="section-head"><div><div class="eyebrow">Começar explorando</div><h2>Alguns deputados da base atual</h2></div><a class="source-link small" href="#deputados">Ver todos →</a></div>
+      <div class="deputy-grid">${data.dados.slice(0,8).map(deputyCard).join("")}</div>
+    </section>`;
+  bindDeputies();
+  const input=document.querySelector("#homeSearch");
+  const matches=document.querySelector("#homeMatches");
+  input.addEventListener("input",()=>{
+    const q=input.value.trim().toLowerCase();
+    if(q.length<2){matches.innerHTML="";return;}
+    const found=data.dados.filter(d=>`${d.nome} ${d.siglaPartido} ${d.siglaUf}`.toLowerCase().includes(q)).slice(0,6);
+    matches.innerHTML=`<div style="display:grid;gap:7px">${found.map(d=>`<div class="deputy" data-id="${d.id}">${photo(d.urlFoto,d.nome,"photo")}<div><h3>${escapeHtml(d.nome)}</h3><div class="tagrow"><span class="tag party">${escapeHtml(d.siglaPartido)}</span><span class="tag uf">${escapeHtml(d.siglaUf)}</span></div></div></div>`).join("")}</div>`;
+    bindDeputies();
+  });
+}
+
+function deputyCard(d){
+  return `<article class="deputy" data-id="${d.id}">
+    ${photo(d.urlFoto,d.nome)}
+    <div><h3>${escapeHtml(d.nome)}</h3><div class="tagrow"><span class="tag party">${escapeHtml(d.siglaPartido)}</span><span class="tag uf">${escapeHtml(d.siglaUf)}</span></div></div>
+  </article>`;
+}
+function bindDeputies(){
+  document.querySelectorAll("[data-id]").forEach(el=>el.addEventListener("click",()=>location.hash=`#deputado/${el.dataset.id}`));
+}
+
+async function renderDirectory(){
+  loading("Carregando deputados federais…");
+  const data=await getDirectory();
+  const deps=data.dados;
+  app.innerHTML=`
+    <div class="section-head"><div><div class="eyebrow">Câmara dos Deputados</div><h1>Deputados federais</h1></div><a class="source-link small" href="${escapeHtml(data.meta.urlFonte)}" target="_blank" rel="noopener">Fonte oficial ↗</a></div>
+    <div class="filters">
+      <input id="q" placeholder="Nome, partido ou UF">
+      <select id="uf"><option value="">Todas as UFs</option>${data.meta.ufs.map(x=>`<option>${escapeHtml(x)}</option>`).join("")}</select>
+      <select id="party"><option value="">Todos os partidos</option>${data.meta.partidos.map(x=>`<option>${escapeHtml(x)}</option>`).join("")}</select>
+    </div>
+    <div class="directory-meta"><span id="count">${deps.length} deputados</span><span>Atualização via API oficial · cache temporário de ${Math.round(data.meta.cacheSegundos/60)} min</span></div>
+    <div class="deputy-grid" id="grid">${deps.map(deputyCard).join("")}</div>`;
+  bindDeputies();
+  const q=document.querySelector("#q"),uf=document.querySelector("#uf"),party=document.querySelector("#party"),grid=document.querySelector("#grid"),count=document.querySelector("#count");
+  function apply(){
+    const term=q.value.trim().toLowerCase(), u=uf.value, p=party.value;
+    const filtered=deps.filter(d=>(!term||`${d.nome} ${d.siglaPartido} ${d.siglaUf}`.toLowerCase().includes(term))&&(!u||d.siglaUf===u)&&(!p||d.siglaPartido===p));
+    count.textContent=`${filtered.length} deputados`;
+    grid.innerHTML=filtered.map(deputyCard).join("");
+    bindDeputies();
+  }
+  [q,uf,party].forEach(x=>x.addEventListener("input",apply));
+}
+
+async function renderProfile(id){
+  loading("Montando ficha oficial do deputado…");
+  const [profile, expenses, career] = await Promise.all([
+    getJSON(`/api/deputados/${id}`),
+    getJSON(`/api/deputados/${id}/despesas?ano=2026`).catch(()=>null),
+    getJSON(`/api/deputados/${id}/carreira`).catch(()=>null)
+  ]);
+  const d=profile.dados||{};
+  const s=d.ultimoStatus||{};
+  const name=s.nomeEleitoral||d.nomeCivil||"Deputado";
+  const exp=expenses?.dados;
+  const history=career?.dados;
+  const topCategories=(exp?.categorias||[]).slice(0,5);
+  const maxCat=topCategories[0]?.valor||1;
+  const mandates=history?.mandatosExternos||[];
+  const camHistory=history?.historicoCamara||[];
+
+  app.innerHTML=`
+    <section class="profile-top">
+      <div>${photo(s.urlFoto,name,"profile-photo")}</div>
+      <div class="identity">
+        <div>
+          <h1>${escapeHtml(name)}</h1>
+          <div class="badges">
+            <span class="badge blue">Deputado Federal</span>
+            <span class="badge green"><span class="party-logo">${escapeHtml((s.siglaPartido||"?").slice(0,3))}</span>${escapeHtml(s.siglaPartido||"—")}</span>
+            <span class="badge">🇧🇷 Brasil</span>
+            <span class="badge">${escapeHtml(s.siglaUf||"UF")}</span>
+          </div>
+          <div class="metadata">
+            Nome civil: <strong>${escapeHtml(d.nomeCivil||"—")}</strong><br>
+            Situação na Câmara: <strong>${escapeHtml(s.situacao||"—")}</strong> · Condição eleitoral: <strong>${escapeHtml(s.condicaoEleitoral||"—")}</strong><br>
+            Gabinete: <strong>${escapeHtml(s.gabinete?.nome||"—")}</strong> · Legislatura: <strong>${escapeHtml(s.idLegislatura||"—")}</strong>
+          </div>
+          <p class="small"><a class="source-link" href="${escapeHtml(profile.meta.urlFonte)}" target="_blank" rel="noopener">Abrir cadastro original na API da Câmara ↗</a></p>
+        </div>
+        <aside class="status-box">
+          <h3>Status eleitoral</h3>
+          <div class="status-current">
+            <strong>Em construção</strong>
+            <span>Esta etapa ainda não infere inelegibilidade a partir da Câmara. O status “já esteve inelegível” só será exibido após integração documental com TSE/Justiça Eleitoral.</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="stat"><label>Partido atual</label><strong>${escapeHtml(s.siglaPartido||"—")}</strong><small>${escapeHtml(s.siglaUf||"")}</small></div>
+      <div class="stat"><label>Despesas 2026</label><strong>${exp?BRL.format(exp.total):"—"}</strong><small>${exp?`${exp.quantidadeLancamentos} lançamentos`:"não carregado"}</small></div>
+      <div class="stat"><label>Mandatos externos</label><strong>${mandates.length}</strong><small>registrados pela Câmara</small></div>
+      <div class="stat"><label>Histórico na Câmara</label><strong>${camHistory.length}</strong><small>mudanças registradas</small></div>
+      <div class="stat"><label>ID oficial</label><strong>${escapeHtml(d.id||id)}</strong><small>Câmara dos Deputados</small></div>
+    </section>
+
+    <div class="tabs"><span class="tab active">Visão geral</span><span class="tab">Votações</span><span class="tab">Despesas</span><span class="tab">Histórico</span><span class="tab">Contradições</span><span class="tab">Justiça</span><span class="tab">Eleições</span></div>
+
+    <section class="profile-grid">
+      <article class="panel">
+        <h2>1. Cadastro oficial</h2>
+        <div class="detail-list">
+          ${detail("Nome civil",d.nomeCivil)}
+          ${detail("Nome eleitoral",s.nomeEleitoral)}
+          ${detail("CPF",d.cpf ? "Informação disponível na fonte oficial" : "—")}
+          ${detail("Sexo",d.sexo)}
+          ${detail("Escolaridade",d.escolaridade)}
+          ${detail("Data de nascimento",formatDate(d.dataNascimento))}
+          ${detail("Município de nascimento",d.municipioNascimento ? `${d.municipioNascimento} / ${d.ufNascimento||""}` : "—")}
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>2. Despesas parlamentares · 2026</h2>
+        ${exp?`<div class="expense-total">${BRL.format(exp.total)}</div><div class="small muted">${exp.quantidadeLancamentos} lançamentos consultados</div>
+        <div class="expense-bars">${topCategories.map(c=>`<div class="expense-item"><span class="small">${escapeHtml(c.tipo)}</span><strong class="small">${BRL.format(c.valor)}</strong><div class="bar"><span style="width:${Math.max(3,(c.valor/maxCat)*100)}%"></span></div></div>`).join("")}</div>
+        <p class="tiny"><a class="source-link" href="${escapeHtml(expenses.meta.urlFonte)}" target="_blank" rel="noopener">Ver endpoint oficial ↗</a></p>`:
+        `<div class="notice">Não foi possível carregar as despesas neste acesso.</div>`}
+      </article>
+
+      <article class="panel">
+        <h2>3. Histórico político</h2>
+        ${mandates.length?`<div class="timeline">${mandates.slice(0,6).map(m=>`<div class="timeline-item"><strong>${escapeHtml(m.cargo||"Mandato externo")}</strong><p>${escapeHtml([m.entidade,m.uf].filter(Boolean).join(" · "))}</p><p>${escapeHtml([m.anoInicio,m.anoFim].filter(Boolean).join(" – "))}</p></div>`).join("")}</div>`:
+        `<p class="small muted">Nenhum mandato externo retornado pela fonte oficial para este perfil.</p>`}
+        <p class="tiny"><a class="source-link" href="${escapeHtml(career?.meta?.urlMandatos||"#")}" target="_blank" rel="noopener">Fonte: mandatos externos ↗</a></p>
+      </article>
+
+      <article class="panel">
+        <h2>4. Contradições</h2>
+        <div class="notice"><strong>Próxima integração de IA.</strong> O sistema cruzará fala anterior × voto/ato posterior, procurará contexto e uma possível justificativa antes de liberar qualquer registro.</div>
+      </article>
+
+      <article class="panel">
+        <h2>5. Justiça e elegibilidade</h2>
+        <div class="notice">Ainda não preenchido automaticamente. A v0.3 deve integrar TSE/Justiça Eleitoral para distinguir: investigação, denúncia, réu, condenação, trânsito em julgado e períodos de inelegibilidade.</div>
+      </article>
+
+      <article class="panel">
+        <h2>6. Fontes</h2>
+        <div class="detail-list">
+          ${detailLink("Cadastro do deputado",profile.meta.urlFonte)}
+          ${expenses?detailLink("Despesas de 2026",expenses.meta.urlFonte):""}
+          ${career?detailLink("Histórico parlamentar",career.meta.urlHistorico):""}
+          ${career?detailLink("Mandatos externos",career.meta.urlMandatos):""}
+        </div>
+      </article>
+    </section>`;
+}
+function detail(label,value){return `<div class="detail-row"><label>${escapeHtml(label)}</label><strong>${escapeHtml(value||"—")}</strong></div>`}
+function detailLink(label,url){return `<div class="detail-row"><label>${escapeHtml(label)}</label><strong><a class="source-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">Abrir fonte oficial ↗</a></strong></div>`}
+function formatDate(v){if(!v)return"—";const [y,m,d]=String(v).split("-");return y&&m&&d?`${d}/${m}/${y}`:v}
+
+function renderMethod(){
+  app.innerHTML=`
+    <div class="section-head"><div><div class="eyebrow">Metodologia do produto</div><h1>Separar coleta de julgamento</h1></div></div>
+    <section class="card method">
+      <div class="method-item"><div><h3>Dados objetivos primeiro</h3><p>Nome, partido, UF, cadastro, despesas e histórico vêm diretamente das APIs e documentos oficiais.</p></div></div>
+      <div class="method-item"><div><h3>IA encontra relações</h3><p>Falas, votos e atos são normalizados por tema. Um agente propõe uma possível contradição.</p></div></div>
+      <div class="method-item"><div><h3>IA tenta refutar</h3><p>Um segundo agente procura mudança de contexto, alteração de texto legislativo, declaração explicativa ou outro motivo que enfraqueça a conclusão.</p></div></div>
+      <div class="method-item"><div><h3>Risco editorial</h3><p>Registros sensíveis de Justiça, crime, inelegibilidade e acusações exigem fonte apropriada e podem ser enviados para revisão humana.</p></div></div>
+      <div class="method-item"><div><h3>Leitor confere</h3><p>Cada ficha mantém links para as fontes de origem. O produto não dá uma nota geral de “honestidade”.</p></div></div>
+    </section>`;
+}
+
+router();

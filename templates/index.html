@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Ficha Pública — histórico público documentado de candidatos e parlamentares." />
+  <title>Ficha Pública — Deputados Federais</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <a href="#home" class="brand"><span class="brandmark">FP</span><strong>Ficha Pública</strong></a>
+  <nav>
+    <a href="#home">Início</a>
+    <a href="#deputados">Deputados</a>
+    <a href="#metodologia">Metodologia</a>
+  </nav>
+  <div class="api-status" id="apiStatus"><span class="pulse"></span> Câmara: conectando…</div>
+</header>
+
+<main id="app" class="shell" aria-live="polite"></main>
+
+<footer>
+  <div><strong>Ficha Pública</strong> · MVP v0.2</div>
+  <div>Não confie na gente. Confira a fonte.</div>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
