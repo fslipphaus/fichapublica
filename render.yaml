@@ -2,6 +2,7 @@ services:
   - type: web
     name: ficha-publica
     runtime: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
