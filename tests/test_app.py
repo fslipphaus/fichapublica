@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from pathlib import Path
 
 from app import app, detectar_contradicoes
 
@@ -7,6 +8,21 @@ def test_health_v03():
     response = app.test_client().get("/api/health")
     assert response.status_code == 200
     assert response.get_json()["version"] == "0.3"
+
+
+def test_navegacao_principal_tem_destinos_reais():
+    html = app.test_client().get("/").get_data(as_text=True)
+    assert 'href="#home"' in html
+    assert 'href="#deputados"' in html
+    assert 'href="#metodologia"' in html
+
+
+def test_abas_e_cartoes_sao_links_e_nao_usam_hash_vazio():
+    js = (Path(__file__).parents[1] / "static" / "app.js").read_text(encoding="utf-8")
+    for section in ("visao-geral", "votacoes", "despesas", "historico", "contradicoes", "justica", "eleicoes"):
+        assert section in js
+    assert 'href="#deputado/${d.id}"' in js
+    assert '||"#"' not in js
 
 
 def test_justica_continua_nao_automatizada():
@@ -36,4 +52,3 @@ def test_cruzamento_de_voto_nominal(mock_votos, mock_votacoes):
     body = app.test_client().get("/api/deputados/123/votacoes").get_json()
     assert body["dados"][0]["voto"] == "Sim"
     assert body["meta"]["deputadoId"] == 123
-

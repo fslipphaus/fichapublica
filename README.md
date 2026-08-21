@@ -17,6 +17,7 @@ Esta versão foi construída **diretamente sobre a v0.2**, preservando sua arqui
 - Detalhes de uma votação e seus votos nominais.
 - Cruzamento de uma amostra de votações recentes para localizar votos de cada deputado.
 - Painel de votações reais recentes na ficha existente.
+- Menu, cartões e abas da ficha com links funcionais e URLs compartilháveis.
 - Estrutura JSON para declaração, voto/ato, tema, posição e estado da fonte.
 - Motor inicial, determinístico e explicável, de candidatos a contradição.
 - Exemplo fictício separado e marcado como **não publicável**.
@@ -47,6 +48,20 @@ A API oferece `/votacoes` e `/votacoes/{id}/votos`, mas não um endpoint direto 
 | `GET /api/deputados/{id}/contradicoes` | Casos reais; lista vazia |
 | `GET /api/deputados/{id}/contradicoes?demonstracao=1` | Exemplo fictício marcado |
 | `GET /api/deputados/{id}/justica` | Não automatizado; lista vazia |
+
+## Navegação da ficha
+
+As abas agora são links reais. Uma seção pode ser aberta ou compartilhada diretamente:
+
+- `#deputado/204534/visao-geral`
+- `#deputado/204534/votacoes`
+- `#deputado/204534/despesas`
+- `#deputado/204534/historico`
+- `#deputado/204534/contradicoes`
+- `#deputado/204534/justica`
+- `#deputado/204534/eleicoes`
+
+Quando uma fonte oficial não está disponível naquele acesso, a interface mostra uma mensagem em vez de criar um link vazio para `#`.
 
 ## Posições e contradições
 
@@ -113,4 +128,3 @@ ficha e painéis existentes
 3. Pipeline de declarações com URL, trecho, data e cópia da fonte.
 4. Fila de revisão editorial humana.
 5. Integração TSE/Justiça antes de preencher elegibilidade ou processos.
-

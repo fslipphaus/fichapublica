@@ -34,7 +34,10 @@ function photo(src,name,cls="photo"){
 async function router(){
   const hash=location.hash||"#home";
   try{
-    if(hash.startsWith("#deputado/")) return renderProfile(hash.split("/")[1]);
+    if(hash.startsWith("#deputado/")){
+      const [,id,section="visao-geral"]=hash.split("/");
+      return renderProfile(id,section);
+    }
     if(hash==="#deputados") return renderDirectory();
     if(hash==="#metodologia") return renderMethod();
     return renderHome();
@@ -84,20 +87,17 @@ async function renderHome(){
     const q=input.value.trim().toLowerCase();
     if(q.length<2){matches.innerHTML="";return;}
     const found=data.dados.filter(d=>`${d.nome} ${d.siglaPartido} ${d.siglaUf}`.toLowerCase().includes(q)).slice(0,6);
-    matches.innerHTML=`<div style="display:grid;gap:7px">${found.map(d=>`<div class="deputy" data-id="${d.id}">${photo(d.urlFoto,d.nome,"photo")}<div><h3>${escapeHtml(d.nome)}</h3><div class="tagrow"><span class="tag party">${escapeHtml(d.siglaPartido)}</span><span class="tag uf">${escapeHtml(d.siglaUf)}</span></div></div></div>`).join("")}</div>`;
-    bindDeputies();
+    matches.innerHTML=`<div style="display:grid;gap:7px">${found.map(d=>`<a class="deputy" href="#deputado/${d.id}">${photo(d.urlFoto,d.nome,"photo")}<div><h3>${escapeHtml(d.nome)}</h3><div class="tagrow"><span class="tag party">${escapeHtml(d.siglaPartido)}</span><span class="tag uf">${escapeHtml(d.siglaUf)}</span></div></div></a>`).join("")}</div>`;
   });
 }
 
 function deputyCard(d){
-  return `<article class="deputy" data-id="${d.id}">
+  return `<a class="deputy" href="#deputado/${d.id}">
     ${photo(d.urlFoto,d.nome)}
     <div><h3>${escapeHtml(d.nome)}</h3><div class="tagrow"><span class="tag party">${escapeHtml(d.siglaPartido)}</span><span class="tag uf">${escapeHtml(d.siglaUf)}</span></div></div>
-  </article>`;
+  </a>`;
 }
-function bindDeputies(){
-  document.querySelectorAll("[data-id]").forEach(el=>el.addEventListener("click",()=>location.hash=`#deputado/${el.dataset.id}`));
-}
+function bindDeputies(){}
 
 async function renderDirectory(){
   loading("Carregando deputados federais…");
@@ -124,7 +124,7 @@ async function renderDirectory(){
   [q,uf,party].forEach(x=>x.addEventListener("input",apply));
 }
 
-async function renderProfile(id){
+async function renderProfile(id,activeSection="visao-geral"){
   loading("Montando ficha oficial do deputado…");
   const [profile, expenses, career, votes, contradictions] = await Promise.all([
     getJSON(`/api/deputados/${id}`),
@@ -146,7 +146,7 @@ async function renderProfile(id){
   const demo=contradictions?.demonstracao;
 
   app.innerHTML=`
-    <section class="profile-top">
+    <section class="profile-top" id="secao-visao-geral">
       <div>${photo(s.urlFoto,name,"profile-photo")}</div>
       <div class="identity">
         <div>
@@ -183,10 +183,18 @@ async function renderProfile(id){
       <div class="stat"><label>ID oficial</label><strong>${escapeHtml(d.id||id)}</strong><small>Câmara dos Deputados</small></div>
     </section>
 
-    <div class="tabs"><span class="tab active">Visão geral</span><span class="tab">Votações</span><span class="tab">Despesas</span><span class="tab">Histórico</span><span class="tab">Contradições</span><span class="tab">Justiça</span><span class="tab">Eleições</span></div>
+    <nav class="tabs" aria-label="Seções da ficha">
+      ${profileTab(id,"visao-geral","Visão geral",activeSection)}
+      ${profileTab(id,"votacoes","Votações",activeSection)}
+      ${profileTab(id,"despesas","Despesas",activeSection)}
+      ${profileTab(id,"historico","Histórico",activeSection)}
+      ${profileTab(id,"contradicoes","Contradições",activeSection)}
+      ${profileTab(id,"justica","Justiça",activeSection)}
+      ${profileTab(id,"eleicoes","Eleições",activeSection)}
+    </nav>
 
     <section class="profile-grid">
-      <article class="panel">
+      <article class="panel" id="secao-cadastro">
         <h2>1. Cadastro oficial</h2>
         <div class="detail-list">
           ${detail("Nome civil",d.nomeCivil)}
@@ -199,7 +207,7 @@ async function renderProfile(id){
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel" id="secao-despesas">
         <h2>2. Despesas parlamentares · 2026</h2>
         ${exp?`<div class="expense-total">${BRL.format(exp.total)}</div><div class="small muted">${exp.quantidadeLancamentos} lançamentos consultados</div>
         <div class="expense-bars">${topCategories.map(c=>`<div class="expense-item"><span class="small">${escapeHtml(c.tipo)}</span><strong class="small">${BRL.format(c.valor)}</strong><div class="bar"><span style="width:${Math.max(3,(c.valor/maxCat)*100)}%"></span></div></div>`).join("")}</div>
@@ -207,21 +215,21 @@ async function renderProfile(id){
         `<div class="notice">Não foi possível carregar as despesas neste acesso.</div>`}
       </article>
 
-      <article class="panel">
+      <article class="panel" id="secao-historico">
         <h2>3. Histórico político</h2>
         ${mandates.length?`<div class="timeline">${mandates.slice(0,6).map(m=>`<div class="timeline-item"><strong>${escapeHtml(m.cargo||"Mandato externo")}</strong><p>${escapeHtml([m.entidade,m.uf].filter(Boolean).join(" · "))}</p><p>${escapeHtml([m.anoInicio,m.anoFim].filter(Boolean).join(" – "))}</p></div>`).join("")}</div>`:
         `<p class="small muted">Nenhum mandato externo retornado pela fonte oficial para este perfil.</p>`}
-        <p class="tiny"><a class="source-link" href="${escapeHtml(career?.meta?.urlMandatos||"#")}" target="_blank" rel="noopener">Fonte: mandatos externos ↗</a></p>
+        ${career?.meta?.urlMandatos?`<p class="tiny"><a class="source-link" href="${escapeHtml(career.meta.urlMandatos)}" target="_blank" rel="noopener">Fonte: mandatos externos ↗</a></p>`:`<p class="tiny muted">Fonte temporariamente indisponível neste acesso.</p>`}
       </article>
 
-      <article class="panel votes-panel">
+      <article class="panel votes-panel" id="secao-votacoes">
         <h2>4. Votações nominais recentes</h2>
         ${votes?`${recentVotes.length?`<div class="vote-list">${recentVotes.map(voteCard).join("")}</div>`:`<div class="notice">Nenhum voto nominal foi localizado na janela recente analisada.</div>`}
         <p class="tiny muted vote-note">${escapeHtml(votes.meta?.nota||"")}</p>`:
         `<div class="notice">Não foi possível consultar as votações neste acesso.</div>`}
       </article>
 
-      <article class="panel">
+      <article class="panel" id="secao-contradicoes">
         <h2>5. Contradições</h2>
         <div class="notice"><strong>Nenhuma contradição publicada.</strong> O motor inicial já cruza posições opostas sobre um mesmo tema, mas declarações reais ainda dependem de fonte estruturada, contexto e revisão humana.</div>
         ${demo?`<details class="demo-box"><summary>Ver exemplo puramente demonstrativo</summary>
@@ -232,13 +240,18 @@ async function renderProfile(id){
         </details>`:""}
       </article>
 
-      <article class="panel">
+      <article class="panel" id="secao-justica">
         <h2>6. Justiça e elegibilidade</h2>
         <div class="notice"><strong>Não automatizado.</strong> Estes campos permanecem vazios até a integração oficial com TSE/Justiça Eleitoral. Um campo vazio não significa “sem processos” nem “elegível”.</div>
       </article>
 
-      <article class="panel">
-        <h2>7. Fontes</h2>
+      <article class="panel" id="secao-eleicoes">
+        <h2>7. Eleições</h2>
+        <div class="notice"><strong>Próxima integração oficial.</strong> Candidaturas, resultados, patrimônio declarado e períodos de inelegibilidade só serão preenchidos depois da integração documental com o TSE.</div>
+      </article>
+
+      <article class="panel" id="secao-fontes">
+        <h2>8. Fontes</h2>
         <div class="detail-list">
           ${detailLink("Cadastro do deputado",profile.meta.urlFonte)}
           ${expenses?detailLink("Despesas de 2026",expenses.meta.urlFonte):""}
@@ -248,7 +261,11 @@ async function renderProfile(id){
         </div>
       </article>
     </section>`;
+  const target=document.querySelector(`#secao-${sectionSlug(activeSection)}`);
+  if(activeSection!=="visao-geral"&&target){requestAnimationFrame(()=>target.scrollIntoView({behavior:"smooth",block:"start"}));}
 }
+function sectionSlug(section){return ({"visao-geral":"visao-geral",votacoes:"votacoes",despesas:"despesas",historico:"historico",contradicoes:"contradicoes",justica:"justica",eleicoes:"eleicoes"})[section]||"visao-geral"}
+function profileTab(id,section,label,active){return `<a class="tab ${sectionSlug(active)===section?"active":""}" href="#deputado/${escapeHtml(id)}/${section}" aria-current="${sectionSlug(active)===section?"page":"false"}">${escapeHtml(label)}</a>`}
 function detail(label,value){return `<div class="detail-row"><label>${escapeHtml(label)}</label><strong>${escapeHtml(value||"—")}</strong></div>`}
 function detailLink(label,url){return `<div class="detail-row"><label>${escapeHtml(label)}</label><strong><a class="source-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">Abrir fonte oficial ↗</a></strong></div>`}
 function formatDate(v){if(!v)return"—";const [y,m,d]=String(v).split("-");return y&&m&&d?`${d}/${m}/${y}`:v}
