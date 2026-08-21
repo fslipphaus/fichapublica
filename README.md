@@ -1,76 +1,133 @@
-# Ficha Pública — MVP v0.2
+# Ficha Pública v0.3
 
-A v0.2 substitui os deputados fictícios por **dados consultados em tempo real na API oficial de Dados Abertos da Câmara dos Deputados**.
+MVP em Flask para consultar deputados federais e votos nominais reais recentes usando a API oficial de Dados Abertos da Câmara dos Deputados.
 
-## O que já funciona
+> Princípio editorial: **não confie na gente; confira a fonte.**
 
-- Diretório atual de deputados federais, paginado no backend.
-- Busca por nome, partido e UF.
-- Filtros por partido e UF.
-- Foto oficial, nome eleitoral, partido, UF e ID da Câmara.
-- Perfil detalhado do deputado.
-- Cadastro pessoal disponível na Câmara.
-- Despesas parlamentares de 2026, totalizadas e agrupadas por categoria.
-- Histórico parlamentar e mandatos externos retornados pela Câmara.
-- Links para os endpoints oficiais em cada ficha.
-- Cache de 15 minutos para evitar chamadas desnecessárias à API.
-- Interface responsiva.
-- Página de metodologia.
+## O que há nesta versão
 
-## O que propositalmente AINDA NÃO é automático
+- Diretório de deputados com busca por nome, partido e UF.
+- Ficha individual com cadastro e foto oficiais.
+- Consulta de despesas e resumo por categoria.
+- Endpoints de votações, detalhes e votos nominais.
+- Cruzamento de votações recentes para localizar votos de um deputado.
+- Estrutura JSON para declarações, posições, atos e fontes.
+- Motor inicial, determinístico e explicável, de candidatos a contradição.
+- Exemplo de contradição totalmente fictício, separado dos dados reais e marcado como **não publicável**.
+- Justiça e inelegibilidade deliberadamente vazias e não automatizadas.
+- Cache em memória e limites adequados a uma instância gratuita do Render.
 
-- Contradições.
-- Promessas.
-- Processos judiciais.
-- Histórico de inelegibilidade.
-- Patrimônio do TSE.
-- Votações relevantes por parlamentar.
-- Senadores.
-- Presidência 2026.
+## Fontes e limites
 
-Essas informações permanecem marcadas como próximas integrações. A aplicação não inventa dados para preencher espaços vazios.
+A fonte factual integrada é `https://dadosabertos.camara.leg.br/api/v2`.
 
-## Rodar localmente
+A Câmara expõe `GET /votacoes`, `GET /votacoes/{id}` e `GET /votacoes/{id}/votos`, mas não oferece na API REST um filtro direto para “todos os votos de um deputado”. Por isso, `/api/deputados/{id}/votacoes`:
+
+1. busca uma janela de votações recentes;
+2. consulta em paralelo os votos nominais de cada uma;
+3. seleciona os registros do deputado;
+4. aplica cache por 15 minutos.
+
+Isso é uma amostra recente, não o histórico completo. Votações simbólicas normalmente não têm votos individuais; deputados ausentes também não aparecem em `/votos`. A própria Câmara alerta que a associação entre votação e proposição pode ser imperfeita, especialmente em destaques e proposições acessórias. A interface explicita essas limitações.
+
+Para escala e histórico completo, a próxima versão deve importar diariamente os arquivos anuais `votacoes`, `votacoesVotos`, `votacoesProposicoes` e `votacoesObjetos` para um banco persistente.
+
+## Endpoints
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| GET | `/api/saude` | Saúde e versão |
+| GET | `/api/deputados?nome=&partido=&uf=&pagina=` | Busca de deputados |
+| GET | `/api/deputados/{id}` | Cadastro oficial |
+| GET | `/api/deputados/{id}/despesas?ano=` | Despesas e resumo |
+| GET | `/api/votacoes?dataInicio=&dataFim=&pagina=&itens=` | Votações no período |
+| GET | `/api/votacoes/{id}` | Detalhe de uma votação |
+| GET | `/api/votacoes/{id}/votos` | Votos nominais da votação |
+| GET | `/api/deputados/{id}/votacoes?limite=&dias=` | Votos recentes do deputado |
+| GET | `/api/deputados/{id}/posicoes` | Estrutura futura; retorna vazio |
+| GET | `/api/deputados/{id}/contradicoes` | Casos reais; retorna vazio |
+| GET | `/api/deputados/{id}/contradicoes?demonstracao=1` | Inclui exemplo fictício marcado |
+| GET | `/api/deputados/{id}/justica` | Não automatizado; retorna vazio |
+
+IDs de votação podem conter hífen; o backend aceita o identificador completo.
+
+## Modelo de posições e contradições
+
+O contrato inicial está em `data/posicoes.schema.json`. Uma posição exige pessoa, tema, natureza do ato, orientação, data e estado da fonte. O motor só gera um candidato quando encontra:
+
+- o mesmo `tema_id`;
+- posições opostas (`favoravel` × `contra`);
+- dois registros explicitamente fornecidos.
+
+A saída é sempre `requer_revisao_humana`. Não há classificação por IA, inferência de tema ou publicação automática nesta versão. Antes de publicar um caso real, será necessário verificar o texto efetivamente votado, o contexto temporal, mudanças no projeto, justificativas do parlamentar e as fontes primárias.
+
+## Justiça e inelegibilidade
+
+Não são inferidas a partir de notícias, nomes ou buscas genéricas. O endpoint retorna lista vazia até haver integração confiável com TSE e sistemas oficiais da Justiça, além de regras de atualização e revisão. Um campo vazio significa **não integrado**, nunca “sem processos” ou “elegível”.
+
+## Execução local
+
+Requer Python 3.11 ou superior.
 
 ```bash
 python -m venv .venv
-# macOS/Linux
 source .venv/bin/activate
-# Windows
-# .venv\Scripts\activate
-
 pip install -r requirements.txt
 python app.py
 ```
 
-Abra:
+Abra `http://localhost:5000`.
 
-http://localhost:5000
+## Testes
 
-## Publicar no Render
+```bash
+pip install pytest
+pytest -q
+```
 
-Este pacote inclui `render.yaml`.
+Os testes não dependem da internet: validam saúde, rotas sensíveis, marcação do conteúdo demonstrativo e regras básicas do motor.
 
-1. Suba os arquivos para um repositório GitHub.
-2. No Render, crie um **Blueprint** a partir do repositório.
-3. O Render detectará `render.yaml`.
-4. O comando de produção será `gunicorn app:app`.
+## Publicação no GitHub e Render
 
-## Arquitetura atual
+1. Extraia o ZIP e envie o conteúdo da pasta para um repositório GitHub.
+2. No Render, escolha **New → Blueprint** e conecte o repositório.
+3. O Render lerá `render.yaml`.
+4. Confirme que aparece `plan: free` / instância gratuita antes de concluir.
+5. Aguarde o health check em `/api/saude`.
 
-Browser
-→ Flask (`/api/...`)
-→ Dados Abertos da Câmara
-→ cache em memória
-→ resposta JSON
-→ interface Ficha Pública
+O serviço inicia com `gunicorn app:app`. Nenhum banco ou segredo é necessário nesta versão.
 
-O proxy Flask evita depender diretamente de CORS no navegador e nos dá um ponto central para cache, logs, validação e futuras integrações com IA.
+### Variáveis de ambiente
 
-## Próxima etapa sugerida — v0.3
+- `CACHE_TTL_SECONDS=900`: duração do cache local.
+- `VOTACOES_LOOKBACK_DAYS=120`: janela padrão de busca.
+- `VOTACOES_SCAN_LIMIT=36`: máximo de votações inspecionadas por ficha.
+- `PORT`: definida automaticamente pelo Render.
 
-1. Integrar votações nominais.
-2. Construir a tabela `statement` / `position` para falas públicas.
-3. Criar detector de possíveis contradições.
-4. Integrar TSE para situação eleitoral, patrimônio e candidaturas.
-5. Criar revisão editorial para registros sensíveis.
+## Estrutura
+
+```text
+app.py                         rotas Flask e API
+services/camara.py             cliente da Câmara e cruzamento de votos
+services/cache.py              cache TTL em memória
+services/contradicoes.py       motor inicial + demonstração fictícia
+data/posicoes.schema.json      contrato dos dados editoriais
+templates/                     páginas HTML
+static/css/style.css           identidade visual responsiva
+tests/test_app.py              testes automatizados
+render.yaml                    Blueprint Render no plano free
+```
+
+## Roadmap recomendado
+
+1. Banco PostgreSQL e importação incremental dos arquivos anuais da Câmara.
+2. Associação auditável entre votação, proposição principal, destaques e temas.
+3. Pipeline de declarações com captura de trecho, URL, data e cópia da fonte.
+4. Fila de revisão humana e histórico de decisões editoriais.
+5. Integração TSE/Justiça antes de preencher elegibilidade ou processos.
+6. Senado e candidaturas presidenciais somente após estabilizar os contratos de fonte.
+
+## Aviso editorial
+
+“Possível contradição” é uma hipótese de análise, não uma afirmação sobre intenção, honestidade ou legalidade. Dados demonstrativos nunca devem ser misturados a perfis reais. Todo dado factual deve manter link para a fonte e data de atualização.
+

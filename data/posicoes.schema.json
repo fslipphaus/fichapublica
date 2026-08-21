@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Posição pública ou ato parlamentar",
+  "type": "object",
+  "required": ["id", "pessoa_id", "tema_id", "tipo", "posicao", "data", "fonte_status"],
+  "properties": {
+    "id": {"type": "string"},
+    "pessoa_id": {"type": ["integer", "null"]},
+    "tema_id": {"type": "string"},
+    "tipo": {"enum": ["declaracao", "voto", "proposicao", "ato"]},
+    "posicao": {"enum": ["favoravel", "contra", "neutra", "incerta"]},
+    "texto": {"type": "string"},
+    "data": {"type": "string", "format": "date"},
+    "fonte_url": {"type": ["string", "null"]},
+    "fonte_status": {"enum": ["oficial", "secundaria", "placeholder_sem_fonte"]},
+    "trecho_fonte": {"type": ["string", "null"]},
+    "revisado_por_humano": {"type": "boolean", "default": false}
+  }
+}

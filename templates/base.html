@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Ficha Pública — dados parlamentares com fonte oficial.">
+  <title>{% block title %}Ficha Pública{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">Ficha <strong>Pública</strong><small>v0.3</small></a>
+    <span class="principle">Não confie na gente. Confira a fonte.</span>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer>Dados parlamentares: Câmara dos Deputados. Análises não substituem a leitura das fontes.</footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
+

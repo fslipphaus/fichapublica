@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ deputado.ultimoStatus.nome }} — Ficha Pública{% endblock %}
+{% block content %}
+{% set s = deputado.ultimoStatus %}
+<section class="profile-head">
+  <img class="portrait" src="{{ s.urlFoto }}" alt="Foto oficial de {{ s.nome }}">
+  <div><p class="eyebrow">DEPUTADO(A) FEDERAL · ID OFICIAL {{ deputado.id }}</p><h1>{{ s.nome }}</h1>
+    <p class="identity"><strong>{{ s.siglaPartido }}</strong> · {{ s.siglaUf }} · {{ s.situacao or 'Situação não informada' }}</p>
+    <p>Nome civil: {{ deputado.nomeCivil or 'Não informado' }}</p>
+    <a class="source-link" href="{{ deputado.uri }}" target="_blank" rel="noopener">Ver cadastro oficial ↗</a>
+  </div>
+</section>
+<section class="content profile-content">
+  <div class="metrics">
+    <div><span>Votações</span><strong id="qtd-votos">…</strong><small>nominais recentes</small></div>
+    <div><span>Contradições</span><strong>0</strong><small>publicadas</small></div>
+    <div><span>Justiça</span><strong>—</strong><small>não automatizada</small></div>
+    <div><span>Inelegibilidade</span><strong>—</strong><small>aguarda TSE/Justiça</small></div>
+  </div>
+  <div class="section-heading"><div><p class="eyebrow">ATUAÇÃO PARLAMENTAR</p><h2>Votações nominais recentes</h2></div><span class="official">● Fonte oficial</span></div>
+  <p class="explain">Exibimos somente votos individualmente registrados. Ausência na lista não significa ausência à sessão.</p>
+  <div id="votacoes" class="votes"><div class="skeleton">Consultando votações recentes…</div></div>
+  <section class="analysis-box">
+    <p class="eyebrow">MOTOR DE CONTRADIÇÕES · FASE INICIAL</p><h2>Nenhuma contradição publicada</h2>
+    <p>A v0.3 já possui a estrutura para cruzar declarações e atos sobre o mesmo tema. Ainda não atribuímos declarações automaticamente: sem fonte pública estruturada e revisão humana, o resultado permanece vazio.</p>
+    <details><summary>Ver exemplo puramente demonstrativo</summary><div id="demo">Carregando demonstração…</div></details>
+  </section>
+  <section class="notice"><strong>Justiça e inelegibilidade</strong><p>Estes campos permanecem sem automação até a integração com fontes oficiais do TSE e da Justiça. O sistema não infere situação jurídica.</p></section>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+const deputadoId = {{ deputado.id|tojson }};
+function safe(v='') { const d=document.createElement('div'); d.textContent=v ?? ''; return d.innerHTML; }
+async function votos() {
+  const el=document.querySelector('#votacoes');
+  try { const r=await fetch(`/api/deputados/${deputadoId}/votacoes?limite=8`); const b=await r.json(); if(!r.ok) throw new Error(b.erro);
+    const dados=b.dados||[]; document.querySelector('#qtd-votos').textContent=dados.length;
+    el.innerHTML=dados.map(v=>`<article class="vote"><div class="vote-mark ${safe((v.voto||'').toLowerCase())}">${safe(v.voto||'—')}</div><div><time>${safe(v.data)}</time><h3>${safe(v.descricao)}</h3><p>${safe(v.resultado||v.descricaoUltimaAberturaVotacao||'Resultado não descrito')}</p><a href="${safe(v.fonte)}" target="_blank" rel="noopener">Conferir votos na Câmara ↗</a></div></article>`).join('') || '<div class="notice">Nenhum voto nominal encontrado na janela recente analisada.</div>';
+  } catch(e) { el.innerHTML=`<div class="notice error">Não foi possível carregar as votações agora: ${safe(e.message)}</div>`; document.querySelector('#qtd-votos').textContent='—'; }
+}
+async function demo(){ const el=document.querySelector('#demo'); try { const r=await fetch(`/api/deputados/${deputadoId}/contradicoes?demonstracao=1`); const b=await r.json(); const d=b.demonstracao; el.innerHTML=`<div class="demo-label">${safe(d.rotulo)}</div><p><strong>Declaração fictícia:</strong> ${safe(d.posicoes[0].texto)}</p><p><strong>Ato fictício:</strong> ${safe(d.atos[0].texto)}</p><p><strong>Saída do motor:</strong> possível contradição — requer revisão humana.</p>`; } catch(e){el.textContent='Demonstração indisponível.'} }
+votos(); demo();
+</script>
+{% endblock %}
+

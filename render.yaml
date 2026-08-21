@@ -5,6 +5,14 @@ services:
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
+    healthCheckPath: /api/saude
     envVars:
       - key: CACHE_TTL_SECONDS
         value: 900
+      - key: VOTACOES_LOOKBACK_DAYS
+        value: 120
+      - key: VOTACOES_SCAN_LIMIT
+        value: 36
+      - key: PYTHON_VERSION
+        value: 3.12.7
+
